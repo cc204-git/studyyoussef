@@ -198,124 +198,131 @@
 
 
   <script>
-    function toggleTodo() {
-      const todo = document.getElementById('todo-list');
-      todo.classList.toggle('hidden');
+  function toggleTodo() {
+    const todo = document.getElementById('todo-list');
+    todo.classList.toggle('hidden');
+  }
+
+  function addTask() {
+    const taskText = document.getElementById('new-task').value.trim();
+    if (taskText === '') return;
+    const taskDiv = document.createElement('div');
+    taskDiv.className = 'todo-item';
+    taskDiv.innerHTML = `<input type="checkbox" /> <span>${taskText}</span>`;
+    document.getElementById('tasks').appendChild(taskDiv);
+    document.getElementById('new-task').value = '';
+  }
+
+  let timerInterval;
+  let paused = false;
+  let pauseTime = null;
+  let timeLeft;
+  let currentSession = 0;
+  let sessionLength, breakLength, sessionCount;
+  let startTime;
+  let endTime;
+  let isBreak = false;
+
+  const beepAudio = document.getElementById('beep-sound');
+  document.getElementById('custom-sound').addEventListener('change', function (e) {
+    const file = e.target.files[0];
+    if (file) {
+      const url = URL.createObjectURL(file);
+      beepAudio.src = url;
+    }
+  });
+
+  function startTimerCycle() {
+    sessionLength = parseInt(document.getElementById('session-length').value) * 60;
+    breakLength = parseInt(document.getElementById('break-length').value) * 60;
+    sessionCount = parseInt(document.getElementById('session-count').value);
+    if (isNaN(sessionLength) || isNaN(breakLength) || isNaN(sessionCount)) {
+      alert('Please fill in all fields with numbers.');
+      return;
+    }
+    currentSession = 0;
+    startTime = new Date();
+    paused = false;
+    isBreak = false;
+    document.getElementById('pause-btn').textContent = 'Pause';
+    runSession();
+  }
+
+  function runSession() {
+    if (currentSession >= sessionCount) {
+      const endTime = new Date();
+      const duration = Math.floor((endTime - startTime) / 60000);
+      const formatTime = (date) => date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      const logRow = `<tr><td>${startTime.toLocaleDateString()}</td><td>${formatTime(startTime)}</td><td>${formatTime(endTime)}</td><td>${duration}</td></tr>`;
+      document.getElementById('history-body').innerHTML += logRow;
+      updateTotalTime();
+      alert('All sessions completed!');
+      return;
     }
 
-    function addTask() {
-      const taskText = document.getElementById('new-task').value.trim();
-      if (taskText === '') return;
-      const taskDiv = document.createElement('div');
-      taskDiv.className = 'todo-item';
-      taskDiv.innerHTML = `<input type="checkbox" /> <span>${taskText}</span>`;
-      document.getElementById('tasks').appendChild(taskDiv);
-      document.getElementById('new-task').value = '';
+    isBreak = false;
+    const duration = sessionLength;
+    endTime = Date.now() + duration * 1000;
+    tickTimer(() => runBreak());
+  }
+
+  function runBreak() {
+    isBreak = true;
+    const duration = breakLength;
+    endTime = Date.now() + duration * 1000;
+    tickTimer(() => {
+      currentSession++;
+      runSession();
+    });
+  }
+
+  function tickTimer(onFinish) {
+    clearInterval(timerInterval);
+    timerInterval = setInterval(() => {
+      if (!paused) {
+        const now = Date.now();
+        timeLeft = Math.max(0, Math.floor((endTime - now) / 1000));
+        updateTimerDisplay();
+        if (timeLeft <= 0) {
+          clearInterval(timerInterval);
+          beepAudio.play();
+          setTimeout(onFinish, 1000);
+        }
+      }
+    }, 1000);
+  }
+
+  function pauseTimer() {
+    paused = !paused;
+    if (paused) {
+      pauseTime = Date.now();
+    } else if (pauseTime) {
+      const delay = Date.now() - pauseTime;
+      endTime += delay;
+      pauseTime = null;
     }
+    document.getElementById('pause-btn').textContent = paused ? 'Continue' : 'Pause';
+  }
 
-    let timerInterval;
-    let paused = false;
-    let timeLeft;
-    let currentSession = 0;
-    let sessionLength, breakLength, sessionCount;
-    let startTime;
-    let isBreak = false;
+  function updateTimerDisplay() {
+    const mins = Math.floor(timeLeft / 60);
+    const secs = timeLeft % 60;
+    const prefix = isBreak ? 'Break: ' : '';
+    document.getElementById('timer-display').textContent = `${prefix}${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  }
 
-    const beepAudio = document.getElementById('beep-sound');
-    document.getElementById('custom-sound').addEventListener('change', function (e) {
-      const file = e.target.files[0];
-      if (file) {
-        const url = URL.createObjectURL(file);
-        beepAudio.src = url;
+  function updateTotalTime() {
+    const rows = document.querySelectorAll('#history-body tr');
+    let totalMinutes = 0;
+    rows.forEach(row => {
+      const cells = row.querySelectorAll('td');
+      if (cells.length === 4) {
+        totalMinutes += parseInt(cells[3].textContent);
       }
     });
-
-    function startTimerCycle() {
-      sessionLength = parseInt(document.getElementById('session-length').value) * 60;
-      breakLength = parseInt(document.getElementById('break-length').value) * 60;
-      sessionCount = parseInt(document.getElementById('session-count').value);
-      if (isNaN(sessionLength) || isNaN(breakLength) || isNaN(sessionCount)) {
-        alert('Please fill in all fields with numbers.');
-        return;
-      }
-      currentSession = 0;
-      startTime = new Date();
-      paused = false;
-      isBreak = false;
-      document.getElementById('pause-btn').textContent = 'Pause';
-      runSession();
-    }
-
-    function runSession() {
-      if (currentSession >= sessionCount) {
-        const endTime = new Date();
-        const duration = Math.floor((endTime - startTime) / 60000);
-        const formatTime = (date) => date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-        const logRow = `<tr><td>${startTime.toLocaleDateString()}</td><td>${formatTime(startTime)}</td><td>${formatTime(endTime)}</td><td>${duration}</td></tr>`;
-        document.getElementById('history-body').innerHTML += logRow;
-        updateTotalTime();
-        alert('All sessions completed!');
-        return;
-      }
-      timeLeft = sessionLength;
-      updateTimerDisplay();
-      clearInterval(timerInterval);
-      timerInterval = setInterval(() => {
-        if (!paused) {
-          timeLeft--;
-          updateTimerDisplay();
-          if (timeLeft <= 0) {
-            clearInterval(timerInterval);
-            beepAudio.play();
-            setTimeout(() => runBreak(), 6000);
-          }
-        }
-      }, 1000);
-    }
-
-    function runBreak() {
-      isBreak = true;
-      timeLeft = breakLength;
-      updateTimerDisplay();
-      timerInterval = setInterval(() => {
-        if (!paused) {
-          timeLeft--;
-          updateTimerDisplay();
-          if (timeLeft <= 0) {
-            clearInterval(timerInterval);
-            beepAudio.play();
-            isBreak = false;
-            currentSession++;
-            runSession();
-          }
-        }
-      }, 1000);
-    }
-
-    function pauseTimer() {
-      paused = !paused;
-      document.getElementById('pause-btn').textContent = paused ? 'Continue' : 'Pause';
-    }
-
-    function updateTimerDisplay() {
-      const mins = Math.floor(timeLeft / 60);
-      const secs = timeLeft % 60;
-      const prefix = isBreak ? 'Break: ' : '';
-      document.getElementById('timer-display').textContent = `${prefix}${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-    }
-
-    function updateTotalTime() {
-      const rows = document.querySelectorAll('#history-body tr');
-      let totalMinutes = 0;
-      rows.forEach(row => {
-        const cells = row.querySelectorAll('td');
-        if (cells.length === 4) {
-          totalMinutes += parseInt(cells[3].textContent);
-        }
-      });
-      const totalHours = (totalMinutes / 60).toFixed(2);
-      document.getElementById('total-time').textContent = `Total time studied: ${totalHours} hours`;
-    }
-  </script>
+    const totalHours = (totalMinutes / 60).toFixed(2);
+    document.getElementById('total-time').textContent = `Total time studied: ${totalHours} hours`;
+  }
+</script>
 </body>
 </html>
