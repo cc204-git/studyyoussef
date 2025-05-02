@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Study Tracker</title>
+  <style>
+    body {
+
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      margin: 0;
+      background: url('path/to/your/image.jpg') no-repeat center center fixed;
+      background-size: cover;
+      padding: 0;
+      background: #f5f7fa;
+      color: #333;
+    }
+    header {
+      background: #4a90e2;
+      color: white;
+      padding: 1rem 2rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    nav a {
+      color: white;
+      margin-left: 1rem;
+      text-decoration: none;
+      font-weight: bold;
+    }
+    .container {
+      padding: 2rem;
+    }
+    .hidden {
+      display: none;
+    }
+    .timer-section, .history-section {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .timer {
+      font-size: 4rem;
+      margin: 2rem 0;
+    }
+    input[type="number"], input[type="text"], input[type="file"] {
+      margin: 0.5rem;
+      padding: 0.75rem;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+      width: 220px;
+      font-size: 1rem;
+    }
+    button {
+      padding: 0.75rem 1.5rem;
+      margin: 0.5rem;
+      border: none;
+      border-radius: 5px;
+      background-color: #4a90e2;
+      color: white;
+      font-size: 1rem;
+      cursor: pointer;
+    }
+    button:hover {
+      background-color: #357ab7;
+    }
+    .todo-list {
+      position: absolute;
+      top: 1rem;
+      right: 1rem;
+      background: white;
+      padding: 1rem;
+      border-radius: 10px;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+      width: 250px;
+    }
+    .todo-item {
+      display: flex;
+      align-items: center;
+      margin-bottom: 0.5rem;
+    }
+    .todo-item input[type="checkbox"] {
+      margin-right: 0.5rem;
+    }
+    .history-log {
+      margin-top: 2rem;
+      width: 80%;
+    }
+    .history-log table {
+      width: 100%;
+      border-collapse: collapse;
+      background: white;
+      border-radius: 10px;
+      overflow: hidden;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }
+    .history-log th, .history-log td {
+      border: 1px solid #ddd;
+      padding: 1rem;
+      text-align: center;
+    }
+    .history-log th {
+      background-color: #f0f0f0;
+    }
+    .total-time {
+      margin-top: 1rem;
+      font-size: 1.2rem;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Study Tracker</h1>
+    <nav>
+      <a href="#" onclick="showPage('timer')">Timer</a>
+      <a href="#" onclick="showPage('history')">History</a>
+    </nav>
+  </header>
+  <div class="todo-list">
+    <h3>To-Do List</h3>
+    <div id="tasks"></div>
+    <input type="text" id="new-task" placeholder="New task..." />
+    <button onclick="addTask()">Add</button>
+  </div>
+  <div class="container">
+    <div id="timer-page" class="timer-section">
+      <input type="number" id="session-length" placeholder="Session length (minutes)" />
+      <input type="number" id="break-length" placeholder="Break length (minutes)" />
+      <input type="number" id="session-count" placeholder="Number of sessions" />
+      <input type="file" id="custom-sound" accept="audio/*" />
+      <div class="timer" id="timer-display">00:00</div>
+      <div>
+        <button onclick="startTimerCycle()">Start</button>
+        <button id="pause-btn" onclick="pauseTimer()">Pause</button>
+      </div>
+    </div>
+    <div id="history-page" class="history-section hidden">
+      <h2>Study History</h2>
+      <div class="history-log">
+        <table>
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Start</th>
+              <th>End</th>
+              <th>Duration (min)</th>
+            </tr>
+          </thead>
+          <tbody id="history-body"></tbody>
+        </table>
+        <div class="total-time" id="total-time">Total time studied: 0 hours</div>
+      </div>
+    </div>
+  </div>
+  <audio id="beep-sound" src="https://actions.google.com/sounds/v1/alarms/alarm_clock.ogg"></audio>
+  <script>
+    let currentPage = 'timer';
+    function showPage(page) {
+      document.getElementById('timer-page').classList.add('hidden');
+      document.getElementById('history-page').classList.add('hidden');
+      document.getElementById(`${page}-page`).classList.remove('hidden');
+      currentPage = page;
+    }
+
+    let timerInterval;
+    let paused = false;
+    let timeLeft;
+    let currentSession = 0;
+    let sessionLength, breakLength, sessionCount;
+    let startTime;
+    let isBreak = false;
+
+    const beepAudio = document.getElementById('beep-sound');
+    document.getElementById('custom-sound').addEventListener('change', function (e) {
+      const file = e.target.files[0];
+      if (file) {
+        const url = URL.createObjectURL(file);
+        beepAudio.src = url;
+      }
+    });
+
+    function startTimerCycle() {
+      sessionLength = parseInt(document.getElementById('session-length').value) * 60;
+      breakLength = parseInt(document.getElementById('break-length').value) * 60;
+      sessionCount = parseInt(document.getElementById('session-count').value);
+      if (isNaN(sessionLength) || isNaN(breakLength) || isNaN(sessionCount)) {
+        alert('Please fill in all fields with numbers.');
+        return;
+      }
+      currentSession = 0;
+      startTime = new Date();
+      paused = false;
+      isBreak = false;
+      document.getElementById('pause-btn').textContent = 'Pause';
+      runSession();
+    }
+
+    function runSession() {
+      if (currentSession >= sessionCount) {
+        const endTime = new Date();
+        const duration = Math.floor((endTime - startTime) / 60000);
+        const formatTime = (date) => date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        const logRow = `<tr><td>${startTime.toLocaleDateString()}</td><td>${formatTime(startTime)}</td><td>${formatTime(endTime)}</td><td>${duration}</td></tr>`;
+        document.getElementById('history-body').innerHTML += logRow;
+        updateTotalTime();
+        alert('All sessions completed!');
+        return;
+      }
+      timeLeft = sessionLength;
+      updateTimerDisplay();
+      clearInterval(timerInterval);
+      timerInterval = setInterval(() => {
+        if (!paused) {
+          timeLeft--;
+          updateTimerDisplay();
+          if (timeLeft <= 0) {
+            clearInterval(timerInterval);
+            beepAudio.play();
+            setTimeout(() => runBreak(), 1000);
+          }
+        }
+      }, 1000);
+    }
+
+    function runBreak() {
+      isBreak = true;
+      timeLeft = breakLength;
+      updateTimerDisplay();
+      timerInterval = setInterval(() => {
+        if (!paused) {
+          timeLeft--;
+          updateTimerDisplay();
+          if (timeLeft <= 0) {
+            clearInterval(timerInterval);
+            beepAudio.play();
+            isBreak = false;
+            currentSession++;
+            runSession();
+          }
+        }
+      }, 1000);
+    }
+
+    function pauseTimer() {
+      paused = !paused;
+      document.getElementById('pause-btn').textContent = paused ? 'Continue' : 'Pause';
+    }
+
+    function updateTimerDisplay() {
+      const mins = Math.floor(timeLeft / 60);
+      const secs = timeLeft % 60;
+      const prefix = isBreak ? 'Break: ' : '';
+      document.getElementById('timer-display').textContent = `${prefix}${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    }
+
+    function updateTotalTime() {
+      const rows = document.querySelectorAll('#history-body tr');
+      let totalMinutes = 0;
+      rows.forEach(row => {
+        const cells = row.querySelectorAll('td');
+        if (cells.length === 4) {
+          totalMinutes += parseInt(cells[3].textContent);
+        }
+      });
+      const totalHours = (totalMinutes / 60).toFixed(2);
+      document.getElementById('total-time').textContent = `Total time studied: ${totalHours} hours`;
+    }
+
+    function addTask() {
+      const taskText = document.getElementById('new-task').value.trim();
+      if (taskText === '') return;
+      const taskDiv = document.createElement('div');
+      taskDiv.className = 'todo-item';
+      taskDiv.innerHTML = `<input type="checkbox" /> <span>${taskText}</span>`;
+      document.getElementById('tasks').appendChild(taskDiv);
+      document.getElementById('new-task').value = '';
+    }
+  </script>
+</body>
+</html>
