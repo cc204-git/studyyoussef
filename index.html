@@ -197,7 +197,41 @@
   <audio id="beep-sound" src="default-sound.mp3"></audio>
 
 
-  <script>
+  <!-- Firebase SDK -->
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+
+<script>
+  // 🔧 Replace with your actual Firebase config:
+  // Import the functions you need from the SDKs you need
+import { initializeApp } from "firebase/app";
+import { getAnalytics } from "firebase/analytics";
+// TODO: Add SDKs for Firebase products that you want to use
+// https://firebase.google.com/docs/web/setup#available-libraries
+
+// Your web app's Firebase configuration
+// For Firebase JS SDK v7.20.0 and later, measurementId is optional
+const firebaseConfig = {
+  apiKey: "AIzaSyA7emt5MQd54YPk5YXp_f8qPjSNk2ii760",
+  authDomain: "studyyoussef-76c3f.firebaseapp.com",
+  projectId: "studyyoussef-76c3f",
+  storageBucket: "studyyoussef-76c3f.firebasestorage.app",
+  messagingSenderId: "282796839270",
+  appId: "1:282796839270:web:60164b5529ddf7048878a7",
+  measurementId: "G-45M6B7EB95"
+};
+
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);
+const analytics = getAnalytics(app);
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.database();
+
+  let username = localStorage.getItem('username') || prompt("Enter your username:");
+  let group = localStorage.getItem('group') || prompt("Enter your group name:");
+  localStorage.setItem('username', username);
+  localStorage.setItem('group', group);
+
   function toggleTodo() {
     const todo = document.getElementById('todo-list');
     todo.classList.toggle('hidden');
@@ -234,32 +268,29 @@
 
   async function getInternetTime() {
     try {
-    const response = await fetch("https://worldtimeapi.org/api/ip");
-    const data = await response.json();
-    return new Date(data.utc_datetime).getTime(); // milliseconds
-  } catch (err) {
-    console.error("❌ Failed to fetch internet time. Using local device time.");
-    return Date.now(); // fallback
-  }
+      const response = await fetch("https://worldtimeapi.org/api/ip");
+      const data = await response.json();
+      return new Date(data.utc_datetime).getTime();
+    } catch (err) {
+      console.error("❌ Failed to fetch internet time. Using local device time.");
+      return Date.now(); // fallback
+    }
   }
 
   async function startTimerCycle() {
-    alert("Fetching accurate time... Please wait.");
     sessionLength = parseInt(document.getElementById('session-length').value) * 60;
     breakLength = parseInt(document.getElementById('break-length').value) * 60;
     sessionCount = parseInt(document.getElementById('session-count').value);
-
     if (isNaN(sessionLength) || isNaN(breakLength) || isNaN(sessionCount)) {
       alert('Please fill in all fields with numbers.');
       return;
-      
     }
 
+    alert("Fetching accurate time... Please wait.");
     currentSession = 0;
     paused = false;
     isBreak = false;
     document.getElementById('pause-btn').textContent = 'Pause';
-
     realStartTime = await getInternetTime();
     runSession();
   }
@@ -277,9 +308,9 @@
         <td>${formatTime(end)}</td>
         <td>${duration}</td>
       </tr>`;
-
       document.getElementById('history-body').innerHTML += logRow;
       updateTotalTime();
+      updateGroupStats(duration);
       alert('All sessions completed!');
       return;
     }
@@ -340,7 +371,42 @@
     const totalHours = (totalMinutes / 60).toFixed(2);
     document.getElementById('total-time').textContent = `Total time studied: ${totalHours} hours`;
   }
+
+  function updateGroupStats(minutes) {
+    const ref = db.ref(`groups/${group}/users/${username}`);
+    ref.once('value').then(snapshot => {
+      const current = snapshot.val() || 0;
+      ref.set(current + minutes);
+    });
+    refreshLeaderboard();
+  }
+
+  function refreshLeaderboard() {
+    const ref = db.ref(`groups/${group}/users`);
+    ref.on('value', snapshot => {
+      const users = snapshot.val();
+      if (!users) return;
+      const sorted = Object.entries(users).sort((a, b) => b[1] - a[1]);
+      const html = sorted.map(([user, mins]) =>
+        `<div><strong>${user}</strong>: ${mins} min</div>`).join('');
+      let board = document.getElementById('leaderboard');
+      if (!board) {
+        board = document.createElement('div');
+        board.id = 'leaderboard';
+        board.style.marginTop = '2rem';
+        board.style.padding = '1rem';
+        board.style.background = '#fff';
+        board.style.borderRadius = '10px';
+        board.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
+        document.querySelector('.container').appendChild(board);
+      }
+      board.innerHTML = `<h3>🏆 Group Leaderboard (${group})</h3>` + html;
+    });
+  }
+
+  refreshLeaderboard();
 </script>
+
 
 </body>
 </html>
