@@ -6,6 +6,7 @@
   <title>Study Tracker</title>
   <style>
     body {
+      background-image:url(backiee-275765.jpg) ;      background-size: cover;
       font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
       margin: 0;
       background: #f0f4f8;
@@ -193,7 +194,8 @@
     </div>
   </div>
 
-  <audio id="beep-sound" src="https://actions.google.com/sounds/v1/alarms/alarm_clock.ogg"></audio>
+  <audio id="beep-sound" src="default-sound.mp3"></audio>
+
 
   <script>
     function toggleTodo() {
@@ -265,7 +267,7 @@
           if (timeLeft <= 0) {
             clearInterval(timerInterval);
             beepAudio.play();
-            setTimeout(() => runBreak(), 1000);
+            setTimeout(() => runBreak(), 6000);
           }
         }
       }, 1000);
