@@ -4,6 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Study Tracker</title>
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#4a90e2" />
   <style>
     body {
       background: #f0f4f8;
@@ -271,6 +273,13 @@
         if (cells.length === 5) total += parseInt(cells[3].textContent);
       });
       document.getElementById('total-time').textContent = `Total time studied: ${(total / 60).toFixed(2)} hours`;
+    }
+
+    // Register PWA Service Worker
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('service-worker.js')
+        .then(() => console.log('✅ Service Worker registered'))
+        .catch(err => console.error('❌ Service Worker failed:', err));
     }
   </script>
 </body>
