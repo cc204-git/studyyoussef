@@ -36,10 +36,6 @@
       margin: auto;
     }
 
-    .hidden {
-      display: none;
-    }
-
     .timer-section {
       display: flex;
       flex-direction: column;
@@ -55,17 +51,13 @@
       margin: 1.5rem 0;
     }
 
-    input[type="number"], input[type="text"], input[type="file"] {
+    input[type="number"], input[type="text"] {
       margin: 0.5rem;
       padding: 0.75rem;
       border: 1px solid #ccc;
       border-radius: 8px;
       width: 220px;
       font-size: 1rem;
-    }
-
-    input.invalid {
-      border-color: red;
     }
 
     button {
@@ -114,13 +106,6 @@
       font-weight: bold;
       text-align: right;
     }
-
-    @media (max-width: 600px) {
-      input, button {
-        width: 100%;
-        margin: 0.5rem 0;
-      }
-    }
   </style>
 </head>
 <body>
@@ -135,7 +120,6 @@
       <input type="number" id="session-length" placeholder="Session length (minutes)" value="25" />
       <input type="number" id="break-length" placeholder="Break length (minutes)" value="5" />
       <input type="number" id="session-count" placeholder="Number of sessions" value="4" />
-      
       <div class="timer" id="timer-display">00:00</div>
       <div>
         <button onclick="startTimerCycle()">Start</button>
@@ -148,7 +132,13 @@
       <div class="history-log">
         <table>
           <thead>
-            <tr><th>Date</th><th>Start</th><th>End</th><th>Duration (min)</th></tr>
+            <tr>
+              <th>Date</th>
+              <th>Start</th>
+              <th>End</th>
+              <th>Study Time (min)</th>
+              <th>Break Time (min)</th>
+            </tr>
           </thead>
           <tbody id="history-body"></tbody>
         </table>
@@ -161,7 +151,6 @@
 
   <audio id="beep-sound" src="default-sound.mp3"></audio>
 
-  <!-- Firebase SDKs -->
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
 
@@ -180,16 +169,11 @@
     const db = firebase.database();
 
     let username = "";
-    const group = "default-group"; // Static group for now
+    const group = "default-group";
     let timerInterval, paused = false, pauseTime = null;
     let sessionStartTime, sessionEndTime, timeLeft, currentSession = 0;
     let sessionLength, breakLength, sessionCount, isBreak = false;
-    const beepAudio = document.getElementById('beep-sound');
-
-    document.getElementById('custom-sound').addEventListener('change', function (e) {
-      const file = e.target.files[0];
-      if (file) beepAudio.src = URL.createObjectURL(file);
-    });
+    let totalStudy = 0, totalBreak = 0;
 
     function startTimerCycle() {
       username = document.getElementById('username-input').value.trim();
@@ -207,6 +191,8 @@
       }
 
       currentSession = 0;
+      totalStudy = 0;
+      totalBreak = 0;
       paused = false;
       isBreak = false;
       document.getElementById('pause-btn').textContent = 'Pause';
@@ -217,16 +203,17 @@
     function runSession() {
       if (currentSession >= sessionCount) {
         const end = Date.now();
-        const duration = Math.floor((end - sessionStartTime) / 60000);
-        logHistory(sessionStartTime, end, duration);
-        updateGroupStats(duration);
+        const studyMinutes = Math.floor(totalStudy / 60);
+        const breakMinutes = Math.floor(totalBreak / 60);
+        logHistory(sessionStartTime, end, studyMinutes, breakMinutes);
+        updateGroupStats(studyMinutes);
         alert('All sessions completed!');
         return;
       }
 
       isBreak = false;
       sessionEndTime = Date.now() + sessionLength * 1000;
-      tickTimer(runBreak);
+      tickTimer(runBreak, sessionLength);
     }
 
     function runBreak() {
@@ -235,19 +222,25 @@
       tickTimer(() => {
         currentSession++;
         runSession();
-      });
+      }, breakLength);
     }
 
-    function tickTimer(onFinish) {
+    function tickTimer(onFinish, durationSec) {
       clearInterval(timerInterval);
+      const start = Date.now();
       timerInterval = setInterval(() => {
         if (!paused) {
-          timeLeft = Math.max(0, Math.floor((sessionEndTime - Date.now()) / 1000));
+          const now = Date.now();
+          timeLeft = Math.max(0, Math.floor((sessionEndTime - now) / 1000));
           updateTimerDisplay();
+
           if (timeLeft <= 0) {
             clearInterval(timerInterval);
-            beepAudio.play();
-            setTimeout(onFinish, 6000);
+            const elapsed = Math.floor((now - start) / 1000);
+            if (isBreak) totalBreak += elapsed;
+            else totalStudy += elapsed;
+            document.getElementById('beep-sound').play();
+            setTimeout(onFinish, 1000);
           }
         }
       }, 1000);
@@ -266,10 +259,10 @@
       document.getElementById('timer-display').textContent = `${isBreak ? 'Break: ' : ''}${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
     }
 
-    function logHistory(start, end, duration) {
-      const formatTime = ts => new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    function logHistory(start, end, studyMin, breakMin) {
+      const format = ts => new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
       const date = new Date(start).toLocaleDateString();
-      const row = `<tr><td>${date}</td><td>${formatTime(start)}</td><td>${formatTime(end)}</td><td>${duration}</td></tr>`;
+      const row = `<tr><td>${date}</td><td>${format(start)}</td><td>${format(end)}</td><td>${studyMin}</td><td>${breakMin}</td></tr>`;
       document.getElementById('history-body').innerHTML += row;
       updateTotalTime();
     }
@@ -278,7 +271,7 @@
       let total = 0;
       document.querySelectorAll('#history-body tr').forEach(row => {
         const cells = row.querySelectorAll('td');
-        if (cells.length === 4) total += parseInt(cells[3].textContent);
+        if (cells.length === 5) total += parseInt(cells[3].textContent);
       });
       document.getElementById('total-time').textContent = `Total time studied: ${(total / 60).toFixed(2)} hours`;
     }
