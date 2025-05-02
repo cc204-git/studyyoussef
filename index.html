@@ -216,11 +216,11 @@
   let timerInterval;
   let paused = false;
   let pauseTime = null;
+  let realStartTime;
+  let realEndTime;
   let timeLeft;
   let currentSession = 0;
   let sessionLength, breakLength, sessionCount;
-  let startTime;
-  let endTime;
   let isBreak = false;
 
   const beepAudio = document.getElementById('beep-sound');
@@ -232,28 +232,45 @@
     }
   });
 
-  function startTimerCycle() {
+  async function getInternetTime() {
+    const response = await fetch("https://worldtimeapi.org/api/ip");
+    const data = await response.json();
+    return new Date(data.utc_datetime).getTime(); // returns timestamp in ms
+  }
+
+  async function startTimerCycle() {
     sessionLength = parseInt(document.getElementById('session-length').value) * 60;
     breakLength = parseInt(document.getElementById('break-length').value) * 60;
     sessionCount = parseInt(document.getElementById('session-count').value);
+
     if (isNaN(sessionLength) || isNaN(breakLength) || isNaN(sessionCount)) {
       alert('Please fill in all fields with numbers.');
       return;
     }
+
     currentSession = 0;
-    startTime = new Date();
     paused = false;
     isBreak = false;
     document.getElementById('pause-btn').textContent = 'Pause';
+
+    realStartTime = await getInternetTime();
     runSession();
   }
 
-  function runSession() {
+  async function runSession() {
     if (currentSession >= sessionCount) {
-      const endTime = new Date();
-      const duration = Math.floor((endTime - startTime) / 60000);
-      const formatTime = (date) => date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-      const logRow = `<tr><td>${startTime.toLocaleDateString()}</td><td>${formatTime(startTime)}</td><td>${formatTime(endTime)}</td><td>${duration}</td></tr>`;
+      const end = await getInternetTime();
+      const duration = Math.floor((end - realStartTime) / 60000);
+      const formatTime = (ts) => new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      const formatDate = (ts) => new Date(ts).toLocaleDateString();
+
+      const logRow = `<tr>
+        <td>${formatDate(realStartTime)}</td>
+        <td>${formatTime(realStartTime)}</td>
+        <td>${formatTime(end)}</td>
+        <td>${duration}</td>
+      </tr>`;
+
       document.getElementById('history-body').innerHTML += logRow;
       updateTotalTime();
       alert('All sessions completed!');
@@ -261,15 +278,15 @@
     }
 
     isBreak = false;
-    const duration = sessionLength;
-    endTime = Date.now() + duration * 1000;
+    const now = await getInternetTime();
+    realEndTime = now + sessionLength * 1000;
     tickTimer(() => runBreak());
   }
 
-  function runBreak() {
+  async function runBreak() {
     isBreak = true;
-    const duration = breakLength;
-    endTime = Date.now() + duration * 1000;
+    const now = await getInternetTime();
+    realEndTime = now + breakLength * 1000;
     tickTimer(() => {
       currentSession++;
       runSession();
@@ -278,10 +295,10 @@
 
   function tickTimer(onFinish) {
     clearInterval(timerInterval);
-    timerInterval = setInterval(() => {
+    timerInterval = setInterval(async () => {
       if (!paused) {
-        const now = Date.now();
-        timeLeft = Math.max(0, Math.floor((endTime - now) / 1000));
+        const now = await getInternetTime();
+        timeLeft = Math.max(0, Math.floor((realEndTime - now) / 1000));
         updateTimerDisplay();
         if (timeLeft <= 0) {
           clearInterval(timerInterval);
@@ -294,13 +311,6 @@
 
   function pauseTimer() {
     paused = !paused;
-    if (paused) {
-      pauseTime = Date.now();
-    } else if (pauseTime) {
-      const delay = Date.now() - pauseTime;
-      endTime += delay;
-      pauseTime = null;
-    }
     document.getElementById('pause-btn').textContent = paused ? 'Continue' : 'Pause';
   }
 
@@ -324,5 +334,6 @@
     document.getElementById('total-time').textContent = `Total time studied: ${totalHours} hours`;
   }
 </script>
+
 </body>
 </html>
