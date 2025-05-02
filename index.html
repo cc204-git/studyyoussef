@@ -2,14 +2,13 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Study Tracker</title>
   <style>
     body {
-      background-image:url(backiee-275765.jpg) ;      background-size: cover;
+      background: #f0f4f8;
       font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
       margin: 0;
-      background: #f0f4f8;
       color: #333;
     }
 
@@ -54,7 +53,6 @@
     .timer {
       font-size: 3.5rem;
       margin: 1.5rem 0;
-      color: #333;
     }
 
     input[type="number"], input[type="text"], input[type="file"] {
@@ -64,6 +62,10 @@
       border-radius: 8px;
       width: 220px;
       font-size: 1rem;
+    }
+
+    input.invalid {
+      border-color: red;
     }
 
     button {
@@ -82,30 +84,8 @@
       background-color: #357ab7;
     }
 
-    .todo-list {
-      position: fixed;
-      top: 4rem;
-      right: 1rem;
-      background: white;
-      padding: 1rem;
-      border-radius: 10px;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-      width: 250px;
-      z-index: 10;
-    }
-
-    .todo-item {
-      display: flex;
-      align-items: center;
-      margin-bottom: 0.5rem;
-    }
-
-    .todo-item input[type="checkbox"] {
-      margin-right: 0.5rem;
-    }
-
-    .history-section {
-      margin-top: 3rem;
+    .history-section, #leaderboard {
+      margin-top: 2rem;
       background: white;
       padding: 2rem;
       border-radius: 12px;
@@ -136,10 +116,6 @@
     }
 
     @media (max-width: 600px) {
-      .timer-section, .history-section {
-        padding: 1rem;
-      }
-
       input, button {
         width: 100%;
         margin: 0.5rem 0;
@@ -150,23 +126,15 @@
 <body>
   <header>
     <h1>Study Tracker</h1>
-    <nav>
-      <a onclick="toggleTodo()">To-Do List</a>
-    </nav>
+    <nav><a onclick="toggleTodo()">To-Do List</a></nav>
   </header>
-
-  <div class="todo-list hidden" id="todo-list">
-    <h3>To-Do List</h3>
-    <div id="tasks"></div>
-    <input type="text" id="new-task" placeholder="New task..." />
-    <button onclick="addTask()">Add</button>
-  </div>
 
   <div class="container">
     <div class="timer-section">
-      <input type="number" id="session-length" placeholder="Session length (minutes)" />
-      <input type="number" id="break-length" placeholder="Break length (minutes)" />
-      <input type="number" id="session-count" placeholder="Number of sessions" />
+      <input type="text" id="username-input" placeholder="Enter your username" />
+      <input type="number" id="session-length" placeholder="Session length (minutes)" value="25" />
+      <input type="number" id="break-length" placeholder="Break length (minutes)" value="5" />
+      <input type="number" id="session-count" placeholder="Number of sessions" value="4" />
       <input type="file" id="custom-sound" accept="audio/*" />
       <div class="timer" id="timer-display">00:00</div>
       <div>
@@ -180,242 +148,164 @@
       <div class="history-log">
         <table>
           <thead>
-            <tr>
-              <th>Date</th>
-              <th>Start</th>
-              <th>End</th>
-              <th>Duration (min)</th>
-            </tr>
+            <tr><th>Date</th><th>Start</th><th>End</th><th>Duration (min)</th></tr>
           </thead>
           <tbody id="history-body"></tbody>
         </table>
         <div class="total-time" id="total-time">Total time studied: 0 hours</div>
       </div>
     </div>
+
+    <div id="leaderboard"></div>
   </div>
 
   <audio id="beep-sound" src="default-sound.mp3"></audio>
 
+  <!-- Firebase SDKs -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
 
-  <!-- Firebase SDK -->
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyA7emt5MQd54YPk5YXp_f8qPjSNk2ii760",
+      authDomain: "studyyoussef-76c3f.firebaseapp.com",
+      projectId: "studyyoussef-76c3f",
+      storageBucket: "studyyoussef-76c3f.appspot.com",
+      messagingSenderId: "282796839270",
+      appId: "1:282796839270:web:60164b5529ddf7048878a7",
+      databaseURL: "https://studyyoussef-76c3f-default-rtdb.firebaseio.com/"
+    };
 
-<!-- Firebase SDK -->
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
 
-<!-- Firebase SDKs via CDN -->
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-analytics-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+    let username = "";
+    const group = "default-group"; // Static group for now
+    let timerInterval, paused = false, pauseTime = null;
+    let sessionStartTime, sessionEndTime, timeLeft, currentSession = 0;
+    let sessionLength, breakLength, sessionCount, isBreak = false;
+    const beepAudio = document.getElementById('beep-sound');
 
-<script>
-  // Your Firebase configuration
-  const firebaseConfig = {
-    apiKey: "AIzaSyA7emt5MQd54YPk5YXp_f8qPjSNk2ii760",
-    authDomain: "studyyoussef-76c3f.firebaseapp.com",
-    projectId: "studyyoussef-76c3f",
-    storageBucket: "studyyoussef-76c3f.appspot.com",
-    messagingSenderId: "282796839270",
-    appId: "1:282796839270:web:60164b5529ddf7048878a7",
-    measurementId: "G-45M6B7EB95",
-    databaseURL: "https://studyyoussef-76c3f-default-rtdb.firebaseio.com/"
-  };
+    document.getElementById('custom-sound').addEventListener('change', function (e) {
+      const file = e.target.files[0];
+      if (file) beepAudio.src = URL.createObjectURL(file);
+    });
 
-  // Initialize Firebase
-  const app = firebase.initializeApp(firebaseConfig);
-  const analytics = firebase.analytics();
-  const db = firebase.database();
+    function startTimerCycle() {
+      username = document.getElementById('username-input').value.trim();
+      const sessionInput = document.getElementById('session-length');
+      const breakInput = document.getElementById('break-length');
+      const countInput = document.getElementById('session-count');
 
-  // User setup
-  let username = localStorage.getItem('username') || prompt("Enter your username:");
-  let group = localStorage.getItem('group') || prompt("Enter your group name:");
-  localStorage.setItem('username', username);
-  localStorage.setItem('group', group);
+      sessionLength = parseInt(sessionInput.value) * 60;
+      breakLength = parseInt(breakInput.value) * 60;
+      sessionCount = parseInt(countInput.value);
 
-  // To-Do List Toggle
-  function toggleTodo() {
-    const todo = document.getElementById('todo-list');
-    todo.classList.toggle('hidden');
-  }
+      if (!username || isNaN(sessionLength) || isNaN(breakLength) || isNaN(sessionCount)) {
+        alert('Please enter all values including username.');
+        return;
+      }
 
-  function addTask() {
-    const taskText = document.getElementById('new-task').value.trim();
-    if (taskText === '') return;
-    const taskDiv = document.createElement('div');
-    taskDiv.className = 'todo-item';
-    taskDiv.innerHTML = `<input type="checkbox" /> <span>${taskText}</span>`;
-    document.getElementById('tasks').appendChild(taskDiv);
-    document.getElementById('new-task').value = '';
-  }
-  let username = localStorage.getItem('username') || prompt("Enter your username:");
-let group = localStorage.getItem('group') || prompt("Enter your group name:");
-localStorage.setItem('username', username);
-localStorage.setItem('group', group);
-
-  // Timer Variables
-  let timerInterval;
-  let paused = false;
-  let pauseTime = null;
-  let sessionStartTime;
-  let sessionEndTime;
-  let timeLeft;
-  let currentSession = 0;
-  let sessionLength, breakLength, sessionCount;
-  let isBreak = false;
-
-  const beepAudio = document.getElementById('beep-sound');
-  document.getElementById('custom-sound').addEventListener('change', function (e) {
-    const file = e.target.files[0];
-    if (file) {
-      const url = URL.createObjectURL(file);
-      beepAudio.src = url;
-    }
-  });
-
-  function startTimerCycle() {
-    sessionLength = parseInt(document.getElementById('session-length').value) * 60;
-    breakLength = parseInt(document.getElementById('break-length').value) * 60;
-    sessionCount = parseInt(document.getElementById('session-count').value);
-    if (isNaN(sessionLength) || isNaN(breakLength) || isNaN(sessionCount)) {
-      alert('Please fill in all fields with numbers.');
-      return;
-    }
-    currentSession = 0;
-    paused = false;
-    isBreak = false;
-    document.getElementById('pause-btn').textContent = 'Pause';
-    sessionStartTime = Date.now();
-    runSession();
-  }
-
-  function runSession() {
-    if (currentSession >= sessionCount) {
-      const end = Date.now();
-      const duration = Math.floor((end - sessionStartTime) / 60000);
-      const formatTime = (ts) => new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-      const formatDate = (ts) => new Date(ts).toLocaleDateString();
-      const logRow = `<tr>
-        <td>${formatDate(sessionStartTime)}</td>
-        <td>${formatTime(sessionStartTime)}</td>
-        <td>${formatTime(end)}</td>
-        <td>${duration}</td>
-      </tr>`;
-      document.getElementById('history-body').innerHTML += logRow;
-      updateTotalTime();
-      updateGroupStats(duration);
-      alert('All sessions completed!');
-      return;
-    }
-
-    isBreak = false;
-    sessionEndTime = Date.now() + sessionLength * 1000;
-    tickTimer(() => runBreak());
-  }
-
-  function runBreak() {
-    isBreak = true;
-    sessionEndTime = Date.now() + breakLength * 1000;
-    tickTimer(() => {
-      currentSession++;
+      currentSession = 0;
+      paused = false;
+      isBreak = false;
+      document.getElementById('pause-btn').textContent = 'Pause';
+      sessionStartTime = Date.now();
       runSession();
-    });
-  }
+    }
 
-  function tickTimer(onFinish) {
-    clearInterval(timerInterval);
-    timerInterval = setInterval(() => {
-      if (!paused) {
-        const now = Date.now();
-        timeLeft = Math.max(0, Math.floor((sessionEndTime - now) / 1000));
-        updateTimerDisplay();
-        if (timeLeft <= 0) {
-          clearInterval(timerInterval);
-          beepAudio.play();
-          setTimeout(onFinish, 1000);
+    function runSession() {
+      if (currentSession >= sessionCount) {
+        const end = Date.now();
+        const duration = Math.floor((end - sessionStartTime) / 60000);
+        logHistory(sessionStartTime, end, duration);
+        updateGroupStats(duration);
+        alert('All sessions completed!');
+        return;
+      }
+
+      isBreak = false;
+      sessionEndTime = Date.now() + sessionLength * 1000;
+      tickTimer(runBreak);
+    }
+
+    function runBreak() {
+      isBreak = true;
+      sessionEndTime = Date.now() + breakLength * 1000;
+      tickTimer(() => {
+        currentSession++;
+        runSession();
+      });
+    }
+
+    function tickTimer(onFinish) {
+      clearInterval(timerInterval);
+      timerInterval = setInterval(() => {
+        if (!paused) {
+          timeLeft = Math.max(0, Math.floor((sessionEndTime - Date.now()) / 1000));
+          updateTimerDisplay();
+          if (timeLeft <= 0) {
+            clearInterval(timerInterval);
+            beepAudio.play();
+            setTimeout(onFinish, 6000);
+          }
         }
-      }
-    }, 1000);
-  }
-
-  function pauseTimer() {
-    paused = !paused;
-    if (paused) {
-      pauseTime = Date.now();
-    } else {
-      const delay = Date.now() - pauseTime;
-      sessionEndTime += delay;
-      pauseTime = null;
+      }, 1000);
     }
-    document.getElementById('pause-btn').textContent = paused ? 'Continue' : 'Pause';
-  }
 
-  function updateTimerDisplay() {
-    const mins = Math.floor(timeLeft / 60);
-    const secs = timeLeft % 60;
-    const prefix = isBreak ? 'Break: ' : '';
-    document.getElementById('timer-display').textContent = `${prefix}${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-  }
+    function pauseTimer() {
+      paused = !paused;
+      if (paused) pauseTime = Date.now();
+      else sessionEndTime += Date.now() - pauseTime;
+      document.getElementById('pause-btn').textContent = paused ? 'Continue' : 'Pause';
+    }
 
-  function updateTotalTime() {
-    const rows = document.querySelectorAll('#history-body tr');
-    let totalMinutes = 0;
-    rows.forEach(row => {
-      const cells = row.querySelectorAll('td');
-      if (cells.length === 4) {
-        totalMinutes += parseInt(cells[3].textContent);
-      }
-    });
-    const totalHours = (totalMinutes / 60).toFixed(2);
-    document.getElementById('total-time').textContent = `Total time studied: ${totalHours} hours`;
-  }
+    function updateTimerDisplay() {
+      const mins = Math.floor(timeLeft / 60);
+      const secs = timeLeft % 60;
+      document.getElementById('timer-display').textContent = `${isBreak ? 'Break: ' : ''}${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+    }
 
-  function updateGroupStats(minutes) {
-    const ref = db.ref(`groups/${group}/users/${username}`);
-    ref.once('value').then(snapshot => {
-      const current = snapshot.val() || 0;
-      ref.set(current + minutes);
-    });
+    function logHistory(start, end, duration) {
+      const formatTime = ts => new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      const date = new Date(start).toLocaleDateString();
+      const row = `<tr><td>${date}</td><td>${formatTime(start)}</td><td>${formatTime(end)}</td><td>${duration}</td></tr>`;
+      document.getElementById('history-body').innerHTML += row;
+      updateTotalTime();
+    }
+
+    function updateTotalTime() {
+      let total = 0;
+      document.querySelectorAll('#history-body tr').forEach(row => {
+        const cells = row.querySelectorAll('td');
+        if (cells.length === 4) total += parseInt(cells[3].textContent);
+      });
+      document.getElementById('total-time').textContent = `Total time studied: ${(total / 60).toFixed(2)} hours`;
+    }
+
+    function updateGroupStats(minutes) {
+      const ref = db.ref(`groups/${group}/users/${username}`);
+      ref.once('value').then(snapshot => {
+        const current = snapshot.val() || 0;
+        ref.set(current + minutes);
+      });
+    }
+
+    function refreshLeaderboard() {
+      const ref = db.ref(`groups/${group}/users`);
+      ref.on('value', snapshot => {
+        const users = snapshot.val();
+        if (!users) return;
+
+        const sorted = Object.entries(users).sort((a, b) => b[1] - a[1]);
+        const html = sorted.map(([user, mins]) => `<div><strong>${user}</strong>: ${(mins / 60).toFixed(2)} hours</div>`).join('');
+
+        const board = document.getElementById('leaderboard');
+        board.innerHTML = `<h3>🏆 Group Leaderboard (${group})</h3>` + html;
+      });
+    }
+
     refreshLeaderboard();
-  }
-
-  function refreshLeaderboard() {
-  const ref = db.ref(`groups/${group}/users`);
-  ref.on('value', snapshot => {
-    const users = snapshot.val();
-    if (!users) return;
-
-    const sorted = Object.entries(users).sort((a, b) => b[1] - a[1]);
-    const html = sorted.map(([user, mins]) =>
-      `<div><strong>${user}</strong>: ${mins} min</div>`).join('');
-
-    let board = document.getElementById('leaderboard');
-    if (!board) {
-      board = document.createElement('div');
-      board.id = 'leaderboard';
-      board.style.marginTop = '2rem';
-      board.style.padding = '1rem';
-      board.style.background = '#fff';
-      board.style.borderRadius = '10px';
-      board.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
-      document.querySelector('.container').appendChild(board);
-    }
-
-    board.innerHTML = `<h3>🏆 Group Leaderboard (${group})</h3>` + html;
-  });
-}
-
-      board.innerHTML = `<h3>🏆 Group Leaderboard (${group})</h3>` + html;
-    });
-  }
-
-  // Load leaderboard on page load
-  refreshLeaderboard();
-</script>
-
-
-
-
+  </script>
 </body>
 </html>
