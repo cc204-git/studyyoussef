@@ -6,15 +6,12 @@
   <title>Study Tracker</title>
   <style>
     body {
-
       font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
       margin: 0;
-      background: url('path/to/your/image.jpg') no-repeat center center fixed;
-      background-size: cover;
-      padding: 0;
-      background: #f5f7fa;
+      background: #f0f4f8;
       color: #333;
     }
+
     header {
       background: #4a90e2;
       color: white;
@@ -24,90 +21,128 @@
       align-items: center;
       box-shadow: 0 2px 4px rgba(0,0,0,0.1);
     }
+
     nav a {
       color: white;
       margin-left: 1rem;
       text-decoration: none;
       font-weight: bold;
+      cursor: pointer;
     }
+
     .container {
       padding: 2rem;
+      max-width: 900px;
+      margin: auto;
     }
+
     .hidden {
       display: none;
     }
-    .timer-section, .history-section {
+
+    .timer-section {
       display: flex;
       flex-direction: column;
       align-items: center;
+      background: white;
+      padding: 2rem;
+      border-radius: 12px;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.05);
     }
+
     .timer {
-      font-size: 4rem;
-      margin: 2rem 0;
+      font-size: 3.5rem;
+      margin: 1.5rem 0;
+      color: #333;
     }
+
     input[type="number"], input[type="text"], input[type="file"] {
       margin: 0.5rem;
       padding: 0.75rem;
       border: 1px solid #ccc;
-      border-radius: 5px;
+      border-radius: 8px;
       width: 220px;
       font-size: 1rem;
     }
+
     button {
       padding: 0.75rem 1.5rem;
       margin: 0.5rem;
       border: none;
-      border-radius: 5px;
+      border-radius: 8px;
       background-color: #4a90e2;
       color: white;
       font-size: 1rem;
       cursor: pointer;
+      transition: background 0.3s;
     }
+
     button:hover {
       background-color: #357ab7;
     }
+
     .todo-list {
-      position: absolute;
-      top: 1rem;
+      position: fixed;
+      top: 4rem;
       right: 1rem;
       background: white;
       padding: 1rem;
       border-radius: 10px;
-      box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
       width: 250px;
+      z-index: 10;
     }
+
     .todo-item {
       display: flex;
       align-items: center;
       margin-bottom: 0.5rem;
     }
+
     .todo-item input[type="checkbox"] {
       margin-right: 0.5rem;
     }
-    .history-log {
-      margin-top: 2rem;
-      width: 80%;
+
+    .history-section {
+      margin-top: 3rem;
+      background: white;
+      padding: 2rem;
+      border-radius: 12px;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.05);
     }
+
     .history-log table {
       width: 100%;
       border-collapse: collapse;
-      background: white;
-      border-radius: 10px;
-      overflow: hidden;
-      box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+      margin-top: 1rem;
     }
+
     .history-log th, .history-log td {
       border: 1px solid #ddd;
       padding: 1rem;
       text-align: center;
     }
+
     .history-log th {
       background-color: #f0f0f0;
     }
+
     .total-time {
       margin-top: 1rem;
-      font-size: 1.2rem;
+      font-size: 1.1rem;
       font-weight: bold;
+      text-align: right;
+    }
+
+    @media (max-width: 600px) {
+      .timer-section, .history-section {
+        padding: 1rem;
+      }
+
+      input, button {
+        width: 100%;
+        margin: 0.5rem 0;
+      }
     }
   </style>
 </head>
@@ -115,18 +150,19 @@
   <header>
     <h1>Study Tracker</h1>
     <nav>
-      <a href="#" onclick="showPage('timer')">Timer</a>
-      <a href="#" onclick="showPage('history')">History</a>
+      <a onclick="toggleTodo()">To-Do List</a>
     </nav>
   </header>
-  <div class="todo-list">
+
+  <div class="todo-list hidden" id="todo-list">
     <h3>To-Do List</h3>
     <div id="tasks"></div>
     <input type="text" id="new-task" placeholder="New task..." />
     <button onclick="addTask()">Add</button>
   </div>
+
   <div class="container">
-    <div id="timer-page" class="timer-section">
+    <div class="timer-section">
       <input type="number" id="session-length" placeholder="Session length (minutes)" />
       <input type="number" id="break-length" placeholder="Break length (minutes)" />
       <input type="number" id="session-count" placeholder="Number of sessions" />
@@ -137,7 +173,8 @@
         <button id="pause-btn" onclick="pauseTimer()">Pause</button>
       </div>
     </div>
-    <div id="history-page" class="history-section hidden">
+
+    <div class="history-section">
       <h2>Study History</h2>
       <div class="history-log">
         <table>
@@ -155,14 +192,23 @@
       </div>
     </div>
   </div>
+
   <audio id="beep-sound" src="https://actions.google.com/sounds/v1/alarms/alarm_clock.ogg"></audio>
+
   <script>
-    let currentPage = 'timer';
-    function showPage(page) {
-      document.getElementById('timer-page').classList.add('hidden');
-      document.getElementById('history-page').classList.add('hidden');
-      document.getElementById(`${page}-page`).classList.remove('hidden');
-      currentPage = page;
+    function toggleTodo() {
+      const todo = document.getElementById('todo-list');
+      todo.classList.toggle('hidden');
+    }
+
+    function addTask() {
+      const taskText = document.getElementById('new-task').value.trim();
+      if (taskText === '') return;
+      const taskDiv = document.createElement('div');
+      taskDiv.className = 'todo-item';
+      taskDiv.innerHTML = `<input type="checkbox" /> <span>${taskText}</span>`;
+      document.getElementById('tasks').appendChild(taskDiv);
+      document.getElementById('new-task').value = '';
     }
 
     let timerInterval;
@@ -267,16 +313,6 @@
       });
       const totalHours = (totalMinutes / 60).toFixed(2);
       document.getElementById('total-time').textContent = `Total time studied: ${totalHours} hours`;
-    }
-
-    function addTask() {
-      const taskText = document.getElementById('new-task').value.trim();
-      if (taskText === '') return;
-      const taskDiv = document.createElement('div');
-      taskDiv.className = 'todo-item';
-      taskDiv.innerHTML = `<input type="checkbox" /> <span>${taskText}</span>`;
-      document.getElementById('tasks').appendChild(taskDiv);
-      document.getElementById('new-task').value = '';
     }
   </script>
 </body>
