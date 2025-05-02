@@ -244,6 +244,7 @@
   }
 
   async function startTimerCycle() {
+    alert("Fetching accurate time... Please wait.");
     sessionLength = parseInt(document.getElementById('session-length').value) * 60;
     breakLength = parseInt(document.getElementById('break-length').value) * 60;
     sessionCount = parseInt(document.getElementById('session-count').value);
@@ -251,6 +252,7 @@
     if (isNaN(sessionLength) || isNaN(breakLength) || isNaN(sessionCount)) {
       alert('Please fill in all fields with numbers.');
       return;
+      
     }
 
     currentSession = 0;
