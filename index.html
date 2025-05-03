@@ -88,6 +88,14 @@
       background-color: #357ab7;
     }
 
+    .button-group {
+      display: flex;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: 1rem;
+      margin-top: 1rem;
+    }
+
     .history-log table {
       width: 100%;
       border-collapse: collapse;
@@ -147,7 +155,7 @@
         <input type="number" id="session-count" placeholder="Number of sessions" />
       </div>
       <div class="timer" id="timer-display">00:00</div>
-      <div>
+      <div class="button-group">
         <button onclick="startTimerCycle()">Start</button>
         <button id="pause-btn" onclick="pauseTimer()">Pause</button>
       </div>
@@ -257,13 +265,13 @@
       const mins = Math.floor(timeLeft / 60);
       const secs = timeLeft % 60;
       document.getElementById('timer-display').textContent =
-        ${isBreak ? 'Break: ' : ''}${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')};
+        `${isBreak ? 'Break: ' : ''}${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
     }
 
     function logHistory(start, end, studyMin, breakMin) {
       const format = ts => new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
       const date = new Date(start).toLocaleDateString();
-      const row = <tr><td>${date}</td><td>${format(start)}</td><td>${format(end)}</td><td>${studyMin}</td><td>${breakMin}</td></tr>;
+      const row = `<tr><td>${date}</td><td>${format(start)}</td><td>${format(end)}</td><td>${studyMin}</td><td>${breakMin}</td></tr>`;
       document.getElementById('history-body').innerHTML += row;
       updateTotalTime();
     }
@@ -274,7 +282,7 @@
         const cells = row.querySelectorAll('td');
         if (cells.length === 5) total += parseInt(cells[3].textContent);
       });
-      document.getElementById('total-time').textContent = Total time studied: ${(total / 60).toFixed(2)} hours;
+      document.getElementById('total-time').textContent = `Total time studied: ${(total / 60).toFixed(2)} hours`;
     }
 
     // Register PWA Service Worker
