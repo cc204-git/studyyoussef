@@ -6,7 +6,28 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Study Tracker</title>
   <link rel="manifest" href="manifest.json" />
-  <meta name="theme-color" content="#4a90e2" />
+  <meta name="theme-color" content="#4a90e2" 
+    <!-- Firebase SDKs -->
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js"></script>
+
+<script>
+  // Your Firebase configuration
+  const firebaseConfig = {
+    apiKey: "AIzaSyCj6D1bd1HFqh8_nSr-v_h08Meb0JuIl7c",
+    authDomain: "studytracker-d1800.firebaseapp.com",
+    projectId: "studytracker-d1800",
+    storageBucket: "studytracker-d1800.firebasestorage.app",
+    messagingSenderId: "4949883354",
+    appId: "1:4949883354:web:1feeb271c00f2ff9b1a8e3"
+  };
+
+  // Initialize Firebase
+  firebase.initializeApp(firebaseConfig);
+  const auth = firebase.auth();
+  const db = firebase.firestore();
+</script>
   <style>
     body {
       background: #f0f4f8;
