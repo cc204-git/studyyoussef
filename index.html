@@ -1,62 +1,152 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+  <link rel="icon" type="image/png" href="icon-192.png" />
   <meta charset="UTF-8" />
-  <title>Login - Study Tracker</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Study Tracker</title>
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#4a90e2" />
   <style>
     body {
       background: #f0f4f8;
-      font-family: Arial, sans-serif;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      height: 100vh;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
       margin: 0;
+      color: #333;
     }
-    .login-container {
+    header {
+      background: #4a90e2;
+      color: white;
+      padding: 1rem 2rem;
+      text-align: center;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    .container {
+      padding: 2rem;
+      max-width: 900px;
+      margin: auto;
+    }
+    .timer-section, .history-section {
       background: white;
       padding: 2rem;
       border-radius: 12px;
-      box-shadow: 0 4px 10px rgba(0,0,0,0.1);
-      text-align: center;
-      max-width: 350px;
-      width: 100%;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.05);
+      margin-top: 1.5rem;
     }
-    input {
-      margin: 0.5rem 0;
-      padding: 0.75rem;
-      width: 100%;
+    .timer {
+      font-size: 3rem;
+      margin: 1.5rem 0;
+      text-align: center;
+    }
+    .input-group {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1rem;
+      margin-bottom: 1rem;
+    }
+    input[type="number"] {
+      padding: 0.75rem 1rem;
       border: 1px solid #ccc;
-      border-radius: 8px;
+      border-radius: 10px;
+      width: 100%;
+      max-width: 300px;
+      font-size: 1rem;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+    }
+    .button-group {
+      display: flex;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: 1rem;
+      margin-top: 1rem;
     }
     button {
-      margin-top: 1rem;
-      padding: 0.75rem;
-      width: 100%;
+      padding: 0.75rem 1.5rem;
       border: none;
-      border-radius: 8px;
-      background: #4a90e2;
+      border-radius: 10px;
+      background-color: #4a90e2;
       color: white;
       font-size: 1rem;
       cursor: pointer;
+      transition: background 0.3s;
+      max-width: 200px;
     }
     button:hover {
-      background: #357ab7;
+      background-color: #357ab7;
+    }
+    .history-log table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 1rem;
+      font-size: 0.9rem;
+    }
+    .history-log th, .history-log td {
+      border: 1px solid #ddd;
+      padding: 0.75rem;
+      text-align: center;
+    }
+    .history-log th {
+      background-color: #f0f0f0;
+    }
+    .total-time {
+      margin-top: 1rem;
+      font-size: 1rem;
+      font-weight: bold;
+      text-align: right;
+    }
+    @media (max-width: 600px) {
+      .container { padding: 1rem; }
+      .timer { font-size: 2.5rem; }
     }
   </style>
 </head>
 <body>
-  <div class="login-container">
-    <h2>Login / Register</h2>
-    <input type="email" id="email" placeholder="Email" required />
-    <input type="password" id="password" placeholder="Password" required />
-    <button onclick="signIn()">Login / Sign Up</button>
+  <header>
+    <h1>Study Tracker</h1>
+    <button onclick="logout()" style="position:absolute; right:20px; top:20px;">Logout</button>
+  </header>
+
+  <div class="container">
+    <div class="timer-section">
+      <div class="input-group">
+        <input type="number" id="session-length" placeholder="Session length (minutes)" />
+        <input type="number" id="break-length" placeholder="Break length (minutes)" />
+        <input type="number" id="session-count" placeholder="Number of sessions" />
+      </div>
+      <div class="timer" id="timer-display">00:00</div>
+      <div class="button-group">
+        <button onclick="startTimerCycle()">Start</button>
+        <button id="pause-btn" onclick="pauseTimer()">Pause</button>
+      </div>
+    </div>
+
+    <div class="history-section">
+      <h2>Study History</h2>
+      <div class="history-log">
+        <table>
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Start</th>
+              <th>End</th>
+              <th>Study Time (min)</th>
+              <th>Break Time (min)</th>
+            </tr>
+          </thead>
+          <tbody id="history-body"></tbody>
+        </table>
+        <div class="total-time" id="total-time">Total time studied: 0 hours</div>
+      </div>
+    </div>
   </div>
+
+  <audio id="beep-sound" src="default-sound.mp3"></audio>
 
   <!-- Firebase SDKs -->
   <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js"></script>
 
   <script>
     const firebaseConfig = {
@@ -70,22 +160,137 @@
 
     firebase.initializeApp(firebaseConfig);
     const auth = firebase.auth();
+    const db = firebase.firestore();
+    let currentUser = null;
 
-    function signIn() {
-      const email = document.getElementById("email").value;
-      const password = document.getElementById("password").value;
+    auth.onAuthStateChanged(user => {
+      if (!user) return location.href = "login.html";
+      currentUser = user;
+      loadHistory();
+    });
 
-      auth.signInWithEmailAndPassword(email, password)
-        .then(() => window.location.href = "index.html")
-        .catch(error => {
-          if (error.code === "auth/user-not-found") {
-            auth.createUserWithEmailAndPassword(email, password)
-              .then(() => window.location.href = "index.html")
-              .catch(err => alert(err.message));
-          } else {
-            alert(error.message);
+    let timerInterval, paused = false, pauseTime = null;
+    let sessionStartTime, sessionEndTime, timeLeft, currentSession = 0;
+    let sessionLength, breakLength, sessionCount, isBreak = false;
+    let totalStudy = 0, totalBreak = 0;
+
+    function startTimerCycle() {
+      const sessionInput = parseInt(document.getElementById('session-length').value);
+      const breakInput = parseInt(document.getElementById('break-length').value);
+      const countInput = parseInt(document.getElementById('session-count').value);
+      if (isNaN(sessionInput) || isNaN(breakInput) || isNaN(countInput)) {
+        alert('Please enter valid numbers.');
+        return;
+      }
+      sessionLength = sessionInput * 60;
+      breakLength = breakInput * 60;
+      sessionCount = countInput;
+      currentSession = 0;
+      totalStudy = 0;
+      totalBreak = 0;
+      paused = false;
+      isBreak = false;
+      document.getElementById('pause-btn').textContent = 'Pause';
+      sessionStartTime = Date.now();
+      runSession();
+    }
+
+    function runSession() {
+      if (currentSession >= sessionCount) {
+        const end = Date.now();
+        const studyMinutes = Math.floor(totalStudy / 60);
+        const breakMinutes = Math.floor(totalBreak / 60);
+        logHistory(sessionStartTime, end, studyMinutes, breakMinutes);
+        return alert('All sessions completed!');
+      }
+      isBreak = false;
+      sessionEndTime = Date.now() + sessionLength * 1000;
+      tickTimer(runBreak, sessionLength);
+    }
+
+    function runBreak() {
+      isBreak = true;
+      sessionEndTime = Date.now() + breakLength * 1000;
+      tickTimer(() => { currentSession++; runSession(); }, breakLength);
+    }
+
+    function tickTimer(onFinish, durationSec) {
+      clearInterval(timerInterval);
+      const start = Date.now();
+      timerInterval = setInterval(() => {
+        if (!paused) {
+          const now = Date.now();
+          timeLeft = Math.max(0, Math.floor((sessionEndTime - now) / 1000));
+          updateTimerDisplay();
+          if (timeLeft <= 0) {
+            clearInterval(timerInterval);
+            const elapsed = Math.floor((now - start) / 1000);
+            if (isBreak) totalBreak += elapsed;
+            else totalStudy += elapsed;
+            document.getElementById('beep-sound').play();
+            setTimeout(onFinish, 1000);
           }
+        }
+      }, 1000);
+    }
+
+    function pauseTimer() {
+      paused = !paused;
+      pauseTime = paused ? Date.now() : null;
+      if (!paused) sessionEndTime += Date.now() - pauseTime;
+      document.getElementById('pause-btn').textContent = paused ? 'Continue' : 'Pause';
+    }
+
+    function updateTimerDisplay() {
+      const mins = Math.floor(timeLeft / 60);
+      const secs = timeLeft % 60;
+      document.getElementById('timer-display').textContent =
+        `${isBreak ? 'Break: ' : ''}${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+    }
+
+    function logHistory(start, end, studyMin, breakMin) {
+      const date = new Date(start).toLocaleDateString();
+      const format = ts => new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      const row = `<tr><td>${date}</td><td>${format(start)}</td><td>${format(end)}</td><td>${studyMin}</td><td>${breakMin}</td></tr>`;
+      document.getElementById('history-body').innerHTML += row;
+
+      db.collection("history").add({
+        uid: currentUser.uid,
+        date,
+        start: format(start),
+        end: format(end),
+        studyMin,
+        breakMin,
+        timestamp: firebase.firestore.FieldValue.serverTimestamp()
+      });
+
+      updateTotalTime();
+    }
+
+    function loadHistory() {
+      db.collection("history").where("uid", "==", currentUser.uid).orderBy("timestamp")
+        .get().then(snapshot => {
+          document.getElementById('history-body').innerHTML = "";
+          snapshot.forEach(doc => {
+            const data = doc.data();
+            const row = `<tr><td>${data.date}</td><td>${data.start}</td><td>${data.end}</td><td>${data.studyMin}</td><td>${data.breakMin}</td></tr>`;
+            document.getElementById('history-body').innerHTML += row;
+          });
+          updateTotalTime();
         });
+    }
+
+    function updateTotalTime() {
+      let total = 0;
+      document.querySelectorAll('#history-body tr').forEach(row => {
+        const cells = row.querySelectorAll('td');
+        if (cells.length === 5) total += parseInt(cells[3].textContent);
+      });
+      document.getElementById('total-time').textContent = `Total time studied: ${(total / 60).toFixed(2)} hours`;
+    }
+
+    function logout() {
+      auth.signOut().then(() => location.href = "login.html");
     }
   </script>
 </body>
